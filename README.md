@@ -26,9 +26,9 @@ requirements.txt
 ```
 
 ## Getting started
-1. Install dependencies:
+1. Install dependencies (use `python -m pip` if `pip` is not on your PATH):
    ```bash
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 2. Generate an example dataset:
    ```bash
