@@ -25,10 +25,16 @@ data_store/              # CSV datasets (created at runtime)
 requirements.txt
 ```
 
+## Environment prerequisites
+- **Python**: 3.10, 3.11, or 3.12. scikit-learn wheels are not yet available for 3.14 on Windows, so builds may fail with
+  `PermissionError` or Meson-related errors when attempting to compile from source.
+- **Pip**: use `python -m pip` if `pip` is not on your PATH.
+
 ## Getting started
-1. Install dependencies (use `python -m pip` if `pip` is not on your PATH):
+1. Install dependencies (ensure you are on Python 3.10–3.12):
    ```bash
-   python -m pip install -r requirements.txt
+   python -m pip install --upgrade pip setuptools wheel
+   python -m pip install --prefer-binary -r requirements.txt
    ```
 2. Generate an example dataset:
    ```bash
@@ -86,3 +92,9 @@ curl -X POST http://localhost:8000/api/predict \
 - The initial model uses Gradient Boosting with isotonic calibration. Replace the estimator in `MatchOutcomeModel.create_default_pipeline` for other algorithms.
 - Dataset columns are defined in `app/features/extractor.py` (features) and `scripts/prepare_dataset_example.py` (one-hot context/sport indicators).
 - Extend `PredictionResult` to include additional markets as needed.
+
+## Troubleshooting
+- **Windows + Python 3.14**: scikit-learn does not yet publish wheels for 3.14 on Windows, which triggers Meson builds that can
+  fail with `PermissionError: [WinError 5] Access is denied`. Install Python 3.10–3.12 instead and retry dependency installation.
+- **Missing `numpy` or other modules**: ensure `python -m pip install --prefer-binary -r requirements.txt` completes without
+  errors before running scripts like `prepare_dataset_example.py`.
