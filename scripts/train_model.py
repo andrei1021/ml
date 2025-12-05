@@ -1,38 +1,37 @@
 import argparse
 from pathlib import Path
+from typing import List, Tuple
 
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-from sklearn.preprocessing import LabelEncoder
 
 from app.config import DEFAULT_MODEL_PATH, RAW_DATA_PATH
 from app.features.extractor import NUMERIC_FEATURES
 from app.models.classifier import MatchOutcomeModel
 
 
-def load_training_data(path: Path) -> tuple[pd.DataFrame, np.ndarray]:
-    df = pd.read_csv(path)
-    if "target_outcome" not in df.columns:
-        raise ValueError("Dataset requires 'target_outcome' column")
+def factorize_targets(labels: pd.Series) -> Tuple[np.ndarray, List[str]]:
+    unique = list(dict.fromkeys(labels))
+    index_map = {label: idx for idx, label in enumerate(unique)}
+    encoded = labels.map(index_map).to_numpy(dtype=int)
+    return encoded, unique
 
-    X = df[NUMERIC_FEATURES + ["context_live", "context_prematch", "context_combo", "sport_football", "sport_basketball"]]
-    y = df["target_outcome"]
-    return X, y.to_numpy()
+
+def train_test_split_numpy(X: np.ndarray, y: np.ndarray, test_size: float = 0.2, seed: int = 42) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    indices = rng.permutation(len(y))
+    split = int(len(y) * (1 - test_size))
+    train_idx, test_idx = indices[:split], indices[split:]
+    return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
 
 
 def main(dataset: Path, output: Path) -> None:
     model_wrapper = MatchOutcomeModel(output)
-    model = model_wrapper.create_default_pipeline()
 
     df = pd.read_csv(dataset)
     if df.empty:
         raise ValueError("Training dataset is empty")
-
-    encoder = LabelEncoder()
-    df["target_label"] = encoder.fit_transform(df["target_outcome"])
 
     feature_columns = NUMERIC_FEATURES + [
         "context_live",
@@ -41,21 +40,27 @@ def main(dataset: Path, output: Path) -> None:
         "sport_football",
         "sport_basketball",
     ]
-    X = df[feature_columns]
-    y = df["target_label"]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    missing = [col for col in feature_columns + ["target_outcome"] if col not in df.columns]
+    if missing:
+        raise ValueError(f"Dataset missing required columns: {missing}")
 
+    X = df[feature_columns].to_numpy(dtype=float)
+    y_encoded, label_classes = factorize_targets(df["target_outcome"])
+
+    X_train, X_test, y_train, y_test = train_test_split_numpy(X, y_encoded, test_size=0.2, seed=42)
+
+    model = model_wrapper.create_default_model(feature_count=X.shape[1])
     model.fit(X_train, y_train)
+
     y_pred = model.predict(X_test)
+    accuracy = float((y_pred == y_test).mean()) if len(y_test) > 0 else 0.0
+    print(f"Validation accuracy: {accuracy:.3f}")
 
-    report = classification_report(y_test, y_pred)
-    print(report)
-
-    joblib.dump(encoder, output.with_suffix(".labels.joblib"))
+    joblib.dump(label_classes, output.with_suffix(".labels.joblib"))
     joblib.dump(feature_columns, output.with_suffix(".features.joblib"))
 
-    model_wrapper.pipeline = model
+    model_wrapper.model = model
     model_wrapper.save()
     print(f"Model saved to {output}")
 

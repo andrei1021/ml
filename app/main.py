@@ -12,7 +12,7 @@ model.load_or_create()
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "model_loaded": model.pipeline is not None}
+    return {"status": "ok", "model_loaded": model.model is not None}
 
 
 @app.post(f"{API_PREFIX}/predict", response_model=PredictionResponse)

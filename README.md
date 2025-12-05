@@ -5,7 +5,7 @@ FastAPI microservice that exposes machine learning predictions for football and 
 ## Features
 - JSON contract compatible with the Node.js bot (live, prematch, combo leg contexts).
 - Feature extraction pipeline to convert match payloads into ML-ready vectors.
-- Training scripts with scikit-learn to retrain and save models.
+- Training scripts with a lightweight NumPy-based softmax classifier (no compiled scikit-learn dependency).
 - Simple storage helpers for CSV-based datasets.
 
 ## Project layout
@@ -26,17 +26,12 @@ requirements.txt
 ```
 
 ## Environment prerequisites
-- **Python**: 3.10, 3.11, or 3.12. scikit-learn wheels are not yet available for 3.14 on Windows, so builds may fail with
-  `PermissionError` or Meson-related errors when attempting to compile from source.
+- **Python**: 3.10–3.14 are supported. The model code now uses only NumPy/Joblib for training and serving, so no compiled scikit-learn wheels are required.
 - **Pip**: use `python -m pip` if `pip` is not on your PATH.
-- **Windows quick fix for scikit-learn Meson errors**:
-  1. Uninstall Python 3.14 if present and install Python 3.12 from https://www.python.org/downloads/windows/ (enable "Add to PATH").
-  2. Upgrade packaging tools: `python -m pip install --upgrade pip setuptools wheel`.
-  3. Force binary wheels to avoid source builds: `python -m pip install --only-binary=:all: scikit-learn==1.5.2 numpy==2.1.1 pandas==2.2.3 joblib==1.4.2 fastapi==0.115.2 uvicorn[standard]==0.30.6`.
-  4. If you still see Meson/ninja attempts, clear the cache and retry: `python -m pip cache purge` then rerun step 3.
+- **Binary wheels first**: prefer binary wheels to avoid compilation on Windows: `python -m pip install --upgrade pip setuptools wheel` followed by `python -m pip install --prefer-binary -r requirements.txt`.
 
 ## Getting started
-1. Install dependencies (ensure you are on Python 3.10–3.12):
+1. Install dependencies (works on Python 3.10–3.14):
    ```bash
    python -m pip install --upgrade pip setuptools wheel
    python -m pip install --prefer-binary -r requirements.txt
@@ -94,12 +89,10 @@ curl -X POST http://localhost:8000/api/predict \
 ```
 
 ## Notes
-- The initial model uses Gradient Boosting with isotonic calibration. Replace the estimator in `MatchOutcomeModel.create_default_pipeline` for other algorithms.
+- The default model is a lightweight softmax regression implemented with NumPy so it can be trained and served on Python 3.14 without C-extension builds. Swap in a different estimator inside `app/models/classifier.py` if you prefer.
 - Dataset columns are defined in `app/features/extractor.py` (features) and `scripts/prepare_dataset_example.py` (one-hot context/sport indicators).
 - Extend `PredictionResult` to include additional markets as needed.
 
 ## Troubleshooting
-- **Windows + Python 3.14**: scikit-learn does not yet publish wheels for 3.14 on Windows, which triggers Meson builds that can
-  fail with `PermissionError: [WinError 5] Access is denied`. Install Python 3.10–3.12 instead and retry dependency installation.
-- **Missing `numpy` or other modules**: ensure `python -m pip install --prefer-binary -r requirements.txt` completes without
-  errors before running scripts like `prepare_dataset_example.py`.
+- **Binary wheels not found**: ensure you are using `python -m pip install --prefer-binary -r requirements.txt` to avoid compiling dependencies from source on Windows.
+- **Missing `numpy` or other modules**: confirm dependency installation before running scripts like `prepare_dataset_example.py`.
